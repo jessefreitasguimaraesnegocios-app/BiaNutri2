@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Loader2, ArrowRight } from 'lucide-react';
+import { Smartphone, Loader2, ArrowRight, LogOut } from 'lucide-react';
 import { setPhone as savePhone, checkPhoneAlreadyUsed, normalizePhone } from '../services/subscriptionService';
 
 interface PhoneModalProps {
@@ -8,6 +8,7 @@ interface PhoneModalProps {
   theme: 'light' | 'dark';
   lang: 'pt' | 'en';
   onSuccess: () => void;
+  onBackToLogin?: () => void;
 }
 
 const texts = {
@@ -17,6 +18,7 @@ const texts = {
     placeholder: '(11) 99999-9999',
     label: 'Telefone (com DDD)',
     button: 'Continuar',
+    backToLogin: 'Voltar ao login',
     errorInvalid: 'Digite um telefone válido com DDD.',
     errorAlreadyUsed: 'Este número já utilizou o período de teste em outra conta.',
     errorGeneric: 'Não foi possível salvar. Tente novamente.',
@@ -27,6 +29,7 @@ const texts = {
     placeholder: '(11) 99999-9999',
     label: 'Phone (with area code)',
     button: 'Continue',
+    backToLogin: 'Back to login',
     errorInvalid: 'Enter a valid phone number with area code.',
     errorAlreadyUsed: 'This number has already used the free trial.',
     errorGeneric: 'Could not save. Please try again.',
@@ -39,6 +42,7 @@ const PhoneModal: React.FC<PhoneModalProps> = ({
   theme,
   lang,
   onSuccess,
+  onBackToLogin,
 }) => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -171,6 +175,20 @@ const PhoneModal: React.FC<PhoneModalProps> = ({
                 </>
               )}
             </button>
+            {onBackToLogin && (
+              <button
+                type="button"
+                onClick={onBackToLogin}
+                className={`w-full mt-3 py-2.5 px-4 rounded-xl font-medium border transition-colors flex items-center justify-center gap-2 ${
+                  theme === 'dark'
+                    ? 'border-slate-600 text-slate-300 hover:bg-slate-700'
+                    : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <LogOut size={18} />
+                {t.backToLogin}
+              </button>
+            )}
           </form>
         </div>
       </div>

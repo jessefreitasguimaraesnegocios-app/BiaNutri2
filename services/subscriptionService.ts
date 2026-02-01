@@ -24,7 +24,7 @@ export async function getProfile(userId: string): Promise<{
     .from('profiles')
     .select('phone, trial_started_at, trial_seconds_used, trial_used_at')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
   if (error || !data) return null;
   return data as any;
 }
@@ -138,7 +138,7 @@ export async function getSubscriptionActive(userId: string): Promise<boolean> {
     .from('subscriptions')
     .select('id, valid_until, status')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
   if (error || !data) return false;
   const sub = data as { valid_until: string; status: string };
   return sub.status === 'active' && new Date(sub.valid_until) > new Date();

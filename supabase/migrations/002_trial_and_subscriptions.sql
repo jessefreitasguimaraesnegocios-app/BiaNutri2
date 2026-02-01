@@ -31,12 +31,14 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Usuário vê apenas sua própria assinatura
+DROP POLICY IF EXISTS "Users can view own subscription" ON public.subscriptions;
 CREATE POLICY "Users can view own subscription"
   ON public.subscriptions
   FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Service role pode inserir/atualizar (webhook)
+DROP POLICY IF EXISTS "Service role full access subscriptions" ON public.subscriptions;
 CREATE POLICY "Service role full access subscriptions"
   ON public.subscriptions
   FOR ALL

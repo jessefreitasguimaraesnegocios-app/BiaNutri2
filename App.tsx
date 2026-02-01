@@ -1780,6 +1780,16 @@ function App() {
               }
             }
           }}
+          onBackToLogin={async () => {
+            try {
+              await signOut();
+              setSession(null);
+              setProfile(null);
+              setAccessStatus(null);
+            } catch (e) {
+              console.error('Erro ao sair:', e);
+            }
+          }}
         />
       </div>
     );

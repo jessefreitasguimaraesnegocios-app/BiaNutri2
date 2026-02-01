@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, X, Play, Square } from 'lucide-react';
 import type { FastingCycle, FastingEntry } from '../types';
 import {
   getFastingEntries,
   saveFastingEntry,
   getEntryByDate,
+  getCurrentFast,
+  setCurrentFast,
+  clearCurrentFast,
   hoursBetween,
   dateToKey,
+  type CurrentFast,
 } from '../services/fastingService';
 
 interface FastingSlideProps {
@@ -32,6 +36,10 @@ const texts = {
     end: 'Fim',
     hours: 'horas',
     register: 'Registrar jejum hoje',
+    startNow: 'Iniciar jejum agora',
+    endFast: 'Encerrar jejum',
+    elapsed: 'Tempo de jejum',
+    goal: 'Meta',
     calendar: 'Calendário',
     dayHours: 'horas neste dia',
     totalWeek: 'Total esta semana',
@@ -49,6 +57,10 @@ const texts = {
     end: 'End',
     hours: 'hours',
     register: 'Log fast today',
+    startNow: 'Start fast now',
+    endFast: 'End fast',
+    elapsed: 'Fasting time',
+    goal: 'Goal',
     calendar: 'Calendar',
     dayHours: 'hours this day',
     totalWeek: 'Total this week',
@@ -60,12 +72,24 @@ const texts = {
   },
 };
 
+function formatElapsed(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
   const [cycle, setCycle] = useState<FastingCycle>('16');
   const [startTime, setStartTime] = useState('20:00');
   const [endTime, setEndTime] = useState('12:00');
   const [customHours, setCustomHours] = useState(16);
   const [entries, setEntries] = useState<FastingEntry[]>([]);
+  const [currentFast, setCurrentFastState] = useState<CurrentFast | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<FastingEntry | null>(null);
@@ -75,7 +99,17 @@ const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
 
   useEffect(() => {
     setEntries(getFastingEntries(userId));
+    setCurrentFastState(getCurrentFast(userId));
   }, [userId]);
+
+  // Cronômetro: atualiza a cada 1s quando há jejum em andamento
+  useEffect(() => {
+    if (!currentFast) return;
+    const tick = () => setElapsedSeconds(Math.floor((Date.now() - currentFast.startTimestamp) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [currentFast?.startTimestamp]);
 
   const suggestedEndTime = (start: string, hours: number): string => {
     const [h, m] = start.split(':').map(Number);
@@ -119,6 +153,38 @@ const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
       cycle,
     };
     saveFastingEntry(userId, entry);
+    setEntries(getFastingEntries(userId));
+  };
+
+  const handleStartNow = () => {
+    const plannedHours = cycle === 'custom' ? customHours : hoursBetween(startTime, endTime);
+    const data: CurrentFast = {
+      startTimestamp: Date.now(),
+      plannedHours,
+      cycle,
+    };
+    setCurrentFast(userId, data);
+    setCurrentFastState(data);
+  };
+
+  const handleEndFast = () => {
+    if (!currentFast) return;
+    const today = dateToKey(new Date());
+    const startDate = new Date(currentFast.startTimestamp);
+    const endDate = new Date();
+    const startStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const endStr = endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const hours = Math.round((elapsedSeconds / 3600) * 10) / 10;
+    const entry: FastingEntry = {
+      date: today,
+      startTime: startStr,
+      endTime: endStr,
+      hours,
+      cycle: currentFast.cycle,
+    };
+    saveFastingEntry(userId, entry);
+    clearCurrentFast(userId);
+    setCurrentFastState(null);
     setEntries(getFastingEntries(userId));
   };
 
@@ -189,6 +255,40 @@ const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
         <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t.subtitle}</p>
       </div>
 
+      {/* Cronômetro grande quando jejum em andamento */}
+      {currentFast && (
+        <div className={`rounded-2xl p-6 sm:p-8 border-2 ${
+          isDark ? 'bg-slate-800/80 border-brand-500/50' : 'bg-brand-50 border-brand-500/40'
+        }`}>
+          <p className={`text-sm font-semibold uppercase tracking-wider text-center mb-2 ${
+            isDark ? 'text-brand-400' : 'text-brand-600'
+          }`}>
+            {t.elapsed}
+          </p>
+          <p
+            className={`text-center font-mono tabular-nums select-none ${
+              isDark ? 'text-white' : 'text-slate-900'
+            }`}
+            style={{ fontSize: 'clamp(3rem, 15vw, 5rem)', lineHeight: 1.1 }}
+          >
+            {formatElapsed(elapsedSeconds)}
+          </p>
+          <p className={`text-center text-sm mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            {t.goal}: {currentFast.plannedHours}h
+          </p>
+          <button
+            onClick={handleEndFast}
+            className="w-full mt-4 py-4 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white shadow-lg"
+          >
+            <Square size={20} />
+            {t.endFast}
+          </button>
+        </div>
+      )}
+
+      {/* Formulário (ciclo, início, fim) – oculto enquanto cronômetro ativo se quiser; ou sempre visível para ajustar próximo */}
+      {!currentFast && (
+        <>
       {/* Ciclo */}
       <div className="space-y-2">
         <label className="text-xs font-bold uppercase text-slate-500">{t.cycle}</label>
@@ -259,12 +359,23 @@ const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
         </p>
       )}
 
-      <button
-        onClick={handleRegister}
-        className="w-full py-3.5 rounded-xl font-bold bg-brand-500 text-white hover:bg-brand-600 shadow-lg shadow-brand-500/30"
-      >
-        {t.register}
-      </button>
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={handleStartNow}
+          className="w-full py-3.5 rounded-xl font-bold bg-brand-500 text-white hover:bg-brand-600 shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2"
+        >
+          <Play size={20} />
+          {t.startNow}
+        </button>
+        <button
+          onClick={handleRegister}
+          className="w-full py-3 rounded-xl font-bold border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+        >
+          {t.register}
+        </button>
+      </div>
+        </>
+      )}
 
       {/* Calendário */}
       <div className="space-y-2">

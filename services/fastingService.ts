@@ -1,6 +1,31 @@
-import type { FastingEntry } from '../types';
+import type { FastingEntry, FastingCycle } from '../types';
 
 const STORAGE_KEY = (userId: string) => `biaNutriFasting_${userId}`;
+const CURRENT_KEY = (userId: string) => `biaNutriFastingCurrent_${userId}`;
+
+export interface CurrentFast {
+  startTimestamp: number;
+  plannedHours: number;
+  cycle: FastingCycle;
+}
+
+export function getCurrentFast(userId: string): CurrentFast | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_KEY(userId));
+    if (!raw) return null;
+    return JSON.parse(raw) as CurrentFast;
+  } catch {
+    return null;
+  }
+}
+
+export function setCurrentFast(userId: string, data: CurrentFast): void {
+  localStorage.setItem(CURRENT_KEY(userId), JSON.stringify(data));
+}
+
+export function clearCurrentFast(userId: string): void {
+  localStorage.removeItem(CURRENT_KEY(userId));
+}
 
 export function getFastingEntries(userId: string): FastingEntry[] {
   try {

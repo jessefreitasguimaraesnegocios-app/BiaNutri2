@@ -92,6 +92,7 @@ function App() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [paymentReturn, setPaymentReturn] = useState<'success' | 'failure' | null>(null);
   const trialIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
   /** Tempo restante do trial em segundos para exibir no cronômetro (atualiza a cada 1s, sincroniza com o servidor a cada 15s). */
   const [trialDisplayRemainingSeconds, setTrialDisplayRemainingSeconds] = useState(0);
 
@@ -241,6 +242,18 @@ function App() {
     }, 1000);
     return () => clearInterval(id);
   }, [isTrialActive, profile?.trial_seconds_used, TRIAL_SECONDS_LIMIT]);
+
+  // Iniciar carrossel na Home (segunda slide); Planos ficam à esquerda
+  useEffect(() => {
+    if (!userId) return;
+    const el = carouselRef.current;
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      const slideWidth = el.offsetWidth || el.clientWidth;
+      if (slideWidth > 0) el.scrollLeft = slideWidth;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [userId]);
 
   // Carregar apenas dados do usuário atual (chave com userId). Sem fallback em chave legada para não misturar dados entre usuários.
   useEffect(() => {
@@ -1863,15 +1876,38 @@ function App() {
         }}
       />
 
-      {/* Carrossel: slide 0 = Home, slide 1 = Planos + cronômetro do trial (arrastar para o lado) */}
+      {/* Carrossel: slide 0 = Planos (esquerda), slide 1 = Home (direita). Inicia na Home. */}
       <div
+        ref={carouselRef}
         className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory scroll-smooth touch-pan-x"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {/* Slide 0: Home (trial strip + conteúdo principal) */}
+        {/* Slide 0 (esquerda): Planos + cronômetro do trial */}
+        <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
+          <PlansCarouselSlide
+            userId={userId!}
+            theme={theme}
+            lang={lang}
+            showTrialCountdown={isTrialActive}
+            trialDisplayRemainingSeconds={trialDisplayRemainingSeconds}
+            trialMinutes={TRIAL_MINUTES}
+            onVerifySubscription={async () => {
+              const p = await getProfile(userId!);
+              setProfile(p);
+              const status = await getAccessStatus(userId!, p);
+              setAccessStatus(status);
+              setPaymentReturn(null);
+            }}
+          />
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-2 px-2">
+            {lang === 'pt' ? 'Deslize para a direita → para ver o app' : 'Swipe right → to see the app'}
+          </p>
+        </div>
+
+        {/* Slide 1 (direita): Home (trial strip + conteúdo principal) */}
         <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
           <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-1 px-2 flex-shrink-0">
-            {lang === 'pt' ? '← Deslize para ver planos e tempo do teste' : '← Swipe to see plans and trial time'}
+            {lang === 'pt' ? '← Deslize para a esquerda para ver planos' : '← Swipe left to see plans'}
           </p>
           {isTrialActive && (
             <div className="max-w-md mx-auto px-4 pt-1 pb-2 flex-shrink-0">
@@ -1907,25 +1943,6 @@ function App() {
             {view === 'dayDetails' && renderDayDetails()}
             {view === 'todayFoods' && renderTodayFoods()}
           </main>
-        </div>
-
-        {/* Slide 1: Planos + cronômetro (arraste para a direita para ver) */}
-        <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
-          <PlansCarouselSlide
-            userId={userId!}
-            theme={theme}
-            lang={lang}
-            showTrialCountdown={isTrialActive}
-            trialDisplayRemainingSeconds={trialDisplayRemainingSeconds}
-            trialMinutes={TRIAL_MINUTES}
-            onVerifySubscription={async () => {
-              const p = await getProfile(userId!);
-              setProfile(p);
-              const status = await getAccessStatus(userId!, p);
-              setAccessStatus(status);
-              setPaymentReturn(null);
-            }}
-          />
         </div>
       </div>
 

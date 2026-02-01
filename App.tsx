@@ -219,37 +219,28 @@ function App() {
     };
   }, [userId, accessStatus, profile?.trial_seconds_used, profile?.trial_used_at]);
 
+  // Carregar apenas dados do usuário atual (chave com userId). Sem fallback em chave legada para não misturar dados entre usuários.
   useEffect(() => {
     if (!userId) return;
 
     const k = (base: string) => `biaNutri${base}_${userId}`;
-    const legacy = (base: string) => `biaNutri${base}`;
 
-    const read = (key: string, legacyKey?: string) => {
-      let v = localStorage.getItem(key);
-      if (v == null && legacyKey) {
-        v = localStorage.getItem(legacyKey);
-        if (v != null) localStorage.setItem(key, v); // migrar para chave por usuário
-      }
-      return v;
-    };
-
-    const savedHistory = read(k('History'), legacy('History'));
+    const savedHistory = localStorage.getItem(k('History'));
     setHistory(savedHistory ? JSON.parse(savedHistory) : MOCK_HISTORY);
 
-    const savedTarget = read(k('DailyTarget'), legacy('DailyTarget'));
+    const savedTarget = localStorage.getItem(k('DailyTarget'));
     setDailyTarget(savedTarget ? parseInt(savedTarget, 10) : null);
 
-    const savedWaterEntries = read(k('WaterEntries'), legacy('WaterEntries'));
+    const savedWaterEntries = localStorage.getItem(k('WaterEntries'));
     setWaterEntries(savedWaterEntries ? JSON.parse(savedWaterEntries) : []);
 
-    const savedWaterGoal = read(k('WaterGoal'), legacy('WaterGoal'));
+    const savedWaterGoal = localStorage.getItem(k('WaterGoal'));
     setWaterGoal(savedWaterGoal ? parseInt(savedWaterGoal, 10) : 2000);
 
-    const savedColor = read(k('Color'), legacy('Color'));
+    const savedColor = localStorage.getItem(k('Color'));
     if (savedColor && COLOR_PALETTES[savedColor]) setColorKey(savedColor);
 
-    const savedPet = read(k('Pet'), legacy('Pet'));
+    const savedPet = localStorage.getItem(k('Pet'));
     if (savedPet && availablePets.some(p => p.id === savedPet)) setSelectedPetId(savedPet);
   }, [userId]);
 
@@ -1786,6 +1777,14 @@ function App() {
               setSession(null);
               setProfile(null);
               setAccessStatus(null);
+              setHistory([]);
+              setDailyTarget(null);
+              setWaterEntries([]);
+              setWaterGoal(2000);
+              setCurrentMeal(null);
+              setCurrentData(null);
+              setFoodPortions({});
+              setError(null);
             } catch (e) {
               console.error('Erro ao sair:', e);
             }

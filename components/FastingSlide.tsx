@@ -435,9 +435,9 @@ const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
 
       {/* Modal: quando começou o jejum (agora ou horário passado) */}
       {showStartTimeModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
           <div
-            className={`w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 ${
+            className={`w-full max-w-sm rounded-2xl p-6 ${
               isDark ? 'bg-slate-800' : 'bg-white'
             } shadow-xl`}
           >

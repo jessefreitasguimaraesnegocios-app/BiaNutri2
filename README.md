@@ -1,25 +1,27 @@
 # BiaNutri
 
-Aplicativo de análise nutricional usando React + Vite com Google Gemini API.
+App de calorias e análise nutricional com trial, paywall e Mercado Pago.
 
 ## 🚀 Tecnologias
 
 - **Frontend**: React 19 + Vite
 - **UI**: Tailwind CSS
 - **3D**: React Three Fiber
+- **Backend**: Supabase (Auth, Edge Functions)
 - **IA**: Google Gemini API
+- **Pagamento**: Mercado Pago (Checkout Pro + Webhook)
 
 ## 📋 Pré-requisitos
 
-- Node.js 18+ instalado
-- Chave da API do Gemini
+- Node.js 18+
+- Conta Supabase e Mercado Pago
 
 ## 🛠️ Instalação
 
 1. Clone o repositório:
 ```bash
-git clone <seu-repositorio>
-cd BiaNutri-main
+git clone https://github.com/jessefreitasguimaraesnegocios-app/BiaNutri2.git
+cd BiaNutri2
 ```
 
 2. Instale as dependências:
@@ -27,64 +29,31 @@ cd BiaNutri-main
 npm install
 ```
 
-3. Configure as variáveis de ambiente:
-
-Crie um arquivo `.env` na raiz do projeto:
-
+3. Configure o `.env` (veja `CHAVES_E_CREDENCIAIS.md`):
 ```env
-VITE_GEMINI_API_KEY=sua-chave-gemini-aqui
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-anon-key
 ```
 
-## 🏃 Executar Localmente
+## 🏃 Executar localmente
 
 ```bash
 npm run dev
 ```
 
-O app estará disponível em `http://localhost:3000`
-
-## 📦 Build para Produção
-
-```bash
-npm run build
-```
-
-Os arquivos serão gerados na pasta `dist/`
-
-## 📁 Estrutura do Projeto
-
-```
-.
-├── components/          # Componentes React
-├── services/            # Serviços (Gemini, etc)
-├── utils/               # Utilitários
-├── App.tsx              # Componente principal
-├── index.tsx            # Entry point
-├── index.html           # HTML template
-├── vite.config.ts       # Configuração do Vite
-└── package.json         # Dependências
-```
+O app estará em `http://localhost:3000`
 
 ## 🔑 Funcionalidades
 
-- 📸 Análise de imagens de alimentos usando IA (Google Gemini)
-- 📊 Visualização de informações nutricionais
+- 📸 Análise de imagens de alimentos (Gemini)
+- 📊 Informações nutricionais, histórico, meta de calorias
 - 💧 Rastreamento de água
-- 📅 Histórico de refeições
-- 🧮 Calculadora de BMR/TDEE
-- 🎨 Tema claro/escuro
-- 🌍 Suporte a PT/EN
+- 🧮 Calculadora BMR/TDEE
+- ⏱️ Trial 30 min + paywall (Mercado Pago)
+- 🎨 Tema claro/escuro, PT/EN
 
-## 📝 Notas
+## 📄 Documentação
 
-- O app usa localStorage para persistir dados localmente
-- A análise de imagens é feita diretamente no frontend usando a API do Gemini
-- Certifique-se de configurar a variável de ambiente `VITE_GEMINI_API_KEY` antes de executar
-
-## 🤝 Contribuindo
-
-Sinta-se à vontade para abrir issues e pull requests!
-
-## 📄 Licença
-
-Este projeto é privado.
+- `CHAVES_E_CREDENCIAIS.md` – Chaves Supabase e Mercado Pago
+- `PAYMENT_SETUP.md` – Configuração do trial e pagamento
+- `DEPLOY_INSTRUCTIONS.md` – Deploy do app

@@ -30,7 +30,7 @@ import {
 } from './services/subscriptionService';
 import type { AccessStatus } from './types';
 import type { Session } from '@supabase/supabase-js';
-import { TRIAL_SECONDS_LIMIT } from './constants/plans';
+import { TRIAL_SECONDS_LIMIT, TRIAL_MINUTES } from './constants/plans';
 
 import { getAvailablePets, PetDefinition } from './utils/petRegistry';
 
@@ -1136,30 +1136,43 @@ function App() {
   const handleSaveCurrentWeight = () => {
     if (!currentWeightInput || isNaN(parseFloat(currentWeightInput)) || !userId) return;
     
+    const weight = parseFloat(currentWeightInput);
     const savedStats = localStorage.getItem(`biaNutriUserStats_${userId}`);
     if (savedStats) {
       try {
         const stats: UserStats = JSON.parse(savedStats);
-        const weight = parseFloat(currentWeightInput);
-        
+        // Primeira vez que salva peso: o valor digitado vira Peso Inicial (e Peso Atual)
         if (!stats.initialWeight) {
-          stats.initialWeight = stats.weight;
+          stats.initialWeight = weight;
           stats.initialWeightDate = Date.now();
         }
-        
         stats.currentWeight = weight;
         stats.currentWeightDate = Date.now();
         stats.weight = weight;
-        
         localStorage.setItem(`biaNutriUserStats_${userId}`, JSON.stringify(stats));
-        setCurrentWeightInput('');
-        
-        navigateToView('home');
-        setTimeout(() => navigateToView('history'), 100);
       } catch (e) {
         console.error('Error saving current weight:', e);
+        return;
       }
+    } else {
+      // Usuário ainda não preencheu a calculadora: criar stats mínimos com peso para Peso Inicial
+      const defaultStats: UserStats = {
+        gender: 'female',
+        age: 30,
+        height: 170,
+        weight,
+        activityLevel: 'moderate',
+        goal: 'maintain',
+        initialWeight: weight,
+        initialWeightDate: Date.now(),
+        currentWeight: weight,
+        currentWeightDate: Date.now(),
+      };
+      localStorage.setItem(`biaNutriUserStats_${userId}`, JSON.stringify(defaultStats));
     }
+    setCurrentWeightInput('');
+    navigateToView('home');
+    setTimeout(() => navigateToView('history'), 100);
   };
 
   const renderHistory = () => {
@@ -1855,6 +1868,35 @@ function App() {
           }
         }}
       />
+
+      {/* Indicador de tempo do teste grátis (visível só durante o trial) */}
+      {accessStatus === 'allowed' &&
+        profile?.trial_started_at &&
+        !profile?.trial_used_at &&
+        profile.trial_seconds_used < TRIAL_SECONDS_LIMIT && (
+          <div className="max-w-md mx-auto px-4 pt-1 pb-2">
+            <div className="rounded-xl bg-brand-500/15 dark:bg-brand-500/20 border border-brand-500/30 px-3 py-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
+                  {lang === 'pt' ? 'Teste grátis' : 'Free trial'}
+                </span>
+                <span className="text-sm font-bold text-brand-700 dark:text-brand-200 tabular-nums">
+                  {lang === 'pt'
+                    ? `${Math.max(0, Math.ceil((TRIAL_SECONDS_LIMIT - profile.trial_seconds_used) / 60))} min restantes de ${TRIAL_MINUTES} min`
+                    : `${Math.max(0, Math.ceil((TRIAL_SECONDS_LIMIT - profile.trial_seconds_used) / 60))} min left of ${TRIAL_MINUTES} min`}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, (profile.trial_seconds_used / TRIAL_SECONDS_LIMIT) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
       <main className="max-w-md mx-auto p-4">
         {view === 'home' && renderHome()}

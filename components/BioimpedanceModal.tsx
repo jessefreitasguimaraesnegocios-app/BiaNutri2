@@ -27,14 +27,18 @@ const BioimpedanceModal: React.FC<BioimpedanceModalProps> = ({ isOpen, onClose, 
 
   const storageKey = userId ? `biaNutriUserStats_${userId}` : null;
 
-  // Load saved stats (por usuário)
+  // Recarregar stats ao abrir o modal para refletir peso/dados atualizados (ex.: de Meus Dados)
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || !isOpen) return;
     const saved = localStorage.getItem(storageKey);
     if (saved) {
-      setStats(JSON.parse(saved));
+      try {
+        setStats(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error loading user stats for modal:', e);
+      }
     }
-  }, [storageKey]);
+  }, [storageKey, isOpen]);
 
   const handleChange = (field: keyof UserStats, value: any) => {
     setStats(prev => ({ ...prev, [field]: value }));
@@ -122,23 +126,25 @@ const BioimpedanceModal: React.FC<BioimpedanceModalProps> = ({ isOpen, onClose, 
   const handleCalculate = () => {
     if (!storageKey) return;
     const savedStats = localStorage.getItem(storageKey);
+    const toSave = { ...stats };
     if (savedStats) {
       try {
         const existingStats = JSON.parse(savedStats);
         if (!existingStats.initialWeight) {
-          stats.initialWeight = stats.weight;
-          stats.initialWeightDate = Date.now();
+          toSave.initialWeight = stats.weight;
+          toSave.initialWeightDate = Date.now();
         }
-      } catch (e) {
-        stats.initialWeight = stats.weight;
-        stats.initialWeightDate = Date.now();
+      } catch {
+        toSave.initialWeight = stats.weight;
+        toSave.initialWeightDate = Date.now();
       }
     } else {
-      stats.initialWeight = stats.weight;
-      stats.initialWeightDate = Date.now();
+      toSave.initialWeight = stats.weight;
+      toSave.initialWeightDate = Date.now();
     }
-    
-    localStorage.setItem(storageKey, JSON.stringify(stats));
+    toSave.currentWeight = stats.weight;
+    toSave.currentWeightDate = Date.now();
+    localStorage.setItem(storageKey, JSON.stringify(toSave));
     const { target } = calculateTarget();
     onUpdate(Math.round(target));
     setShowResults(true);
@@ -224,9 +230,10 @@ const BioimpedanceModal: React.FC<BioimpedanceModalProps> = ({ isOpen, onClose, 
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase text-slate-500">{texts.weight}</label>
                   <input 
-                    type="number" 
+                    type="number"
+                    step="0.1"
                     value={stats.weight}
-                    onChange={(e) => handleChange('weight', Number(e.target.value))}
+                    onChange={(e) => handleChange('weight', Number(e.target.value) || 0)}
                     className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-none text-slate-900 dark:text-white font-bold text-center"
                   />
                 </div>

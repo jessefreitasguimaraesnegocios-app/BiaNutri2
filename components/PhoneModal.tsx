@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Smartphone, Loader2, ArrowRight, LogOut } from 'lucide-react';
 import { setPhone as savePhone, checkPhoneAlreadyUsed, normalizePhone } from '../services/subscriptionService';
+import { TRIAL_MINUTES } from '../constants/plans';
 
 interface PhoneModalProps {
   isOpen: boolean;
@@ -11,10 +12,10 @@ interface PhoneModalProps {
   onBackToLogin?: () => void;
 }
 
-const texts = {
+const getTexts = (trialMinutes: number) => ({
   pt: {
     title: 'Quase lá!',
-    subtitle: 'Informe seu número de telefone para começar seu período de teste de 30 minutos.',
+    subtitle: `Informe seu número de telefone para começar seu período de teste de ${trialMinutes} minutos.`,
     placeholder: '(11) 99999-9999',
     label: 'Telefone (com DDD)',
     button: 'Continuar',
@@ -25,7 +26,7 @@ const texts = {
   },
   en: {
     title: 'Almost there!',
-    subtitle: 'Enter your phone number to start your 30-minute free trial.',
+    subtitle: `Enter your phone number to start your ${trialMinutes}-minute free trial.`,
     placeholder: '(11) 99999-9999',
     label: 'Phone (with area code)',
     button: 'Continue',
@@ -34,7 +35,7 @@ const texts = {
     errorAlreadyUsed: 'This number has already used the free trial.',
     errorGeneric: 'Could not save. Please try again.',
   },
-};
+});
 
 const PhoneModal: React.FC<PhoneModalProps> = ({
   isOpen,
@@ -47,6 +48,7 @@ const PhoneModal: React.FC<PhoneModalProps> = ({
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const texts = getTexts(TRIAL_MINUTES);
 
   if (!isOpen) return null;
 

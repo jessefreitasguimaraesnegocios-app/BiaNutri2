@@ -1,11 +1,14 @@
 // Edge Function: trial – inicia trial e incrementa tempo de uso
 // Requer Authorization: Bearer <user_jwt>
+// Duração do trial: defina TRIAL_MINUTES no Supabase (Edge Function secrets) ou altere o fallback abaixo.
+// Mantenha o mesmo valor em constants/plans.ts (TRIAL_MINUTES) no app.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const TRIAL_SECONDS_LIMIT = 30 * 60;
+const TRIAL_MINUTES = parseInt(Deno.env.get("TRIAL_MINUTES") ?? "30", 10);
+const TRIAL_SECONDS_LIMIT = TRIAL_MINUTES * 60;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

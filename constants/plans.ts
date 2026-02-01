@@ -44,5 +44,8 @@ export const PLANS: Record<PlanId, PlanOption> = {
 /** Ordem de exibição na paywall: trimestral, anual (destaque), mensal */
 export const PLANS_ORDER: PlanId[] = ['monthly', 'quarterly', 'yearly'];
 
-/** Segundos de trial (30 min) */
-export const TRIAL_SECONDS_LIMIT = 30 * 60;
+/** Duração do teste grátis em minutos – altere aqui para mudar o tempo (ex.: 15, 30, 60). */
+export const TRIAL_MINUTES = 30;
+
+/** Segundos de trial (derivado de TRIAL_MINUTES). */
+export const TRIAL_SECONDS_LIMIT = TRIAL_MINUTES * 60;

@@ -21,10 +21,12 @@ import InstallPrompt from './components/InstallPrompt';
 import LoginModal from './components/LoginModal';
 import PhoneModal from './components/PhoneModal';
 import PaywallScreen from './components/PaywallScreen';
+import PlansCarouselSlide from './components/PlansCarouselSlide';
 import { getSession, onAuthStateChange, signOut } from './services/authService';
 import {
   getProfile,
   getAccessStatus,
+  getSubscriptionActive,
   startTrial,
   incrementTrialTime,
 } from './services/subscriptionService';
@@ -1233,54 +1235,28 @@ function App() {
         
         tdee = bmr * activityMultipliers[userStats.activityLevel];
         
-        // Calculate weight difference from ideal weight - use currentWeight if available
         const weightDiff = weightForCalc - avgIdeal;
-        
-        // Caloric adjustment based on ideal weight - the goal is always to reach ideal weight
+        const goal = userStats.goal;
         let caloricAdjustment = 0;
-        
-        // Safe weight loss/gain rates:
-        // - Loss: 0.5-1 kg/week = 500-1000 kcal/day deficit
-        // - Gain: 0.25-0.5 kg/week = 250-500 kcal/day surplus
-        
-        // Primary goal: reach ideal weight
-        if (weightDiff > 2) {
-          // Need to lose weight (more than 2kg above ideal)
-          // Calculate deficit based on how far from ideal
-          if (weightDiff > 10) {
-            caloricAdjustment = -750; // Higher deficit for significant weight loss
-          } else if (weightDiff > 5) {
-            caloricAdjustment = -600; // Medium deficit
-          } else {
-            caloricAdjustment = -400; // Lower deficit for moderate weight loss
-          }
-          
-          // Ensure we don't exceed safe maximum deficit (1000 kcal)
-          // and don't go below BMR (metabolism protection)
-          const maxSafeDeficit = Math.min(1000, (tdee - bmr) * 0.8); // Max 80% of (TDEE - BMR)
+
+        if (goal === 'maintain') {
+          if (weightDiff > 2) caloricAdjustment = -150;
+          else if (weightDiff < -2) caloricAdjustment = 150;
+        } else if (goal === 'lose') {
+          if (weightDiff > 10) caloricAdjustment = -750;
+          else if (weightDiff > 5) caloricAdjustment = -600;
+          else if (weightDiff > 0) caloricAdjustment = -500;
+          else caloricAdjustment = -300;
+          const maxSafeDeficit = Math.min(1000, (tdee - bmr) * 0.8);
           caloricAdjustment = Math.max(caloricAdjustment, -maxSafeDeficit);
-        } else if (weightDiff < -2) {
-          // Need to gain weight (more than 2kg below ideal)
-          // Calculate surplus based on how far from ideal
-          if (Math.abs(weightDiff) > 5) {
-            caloricAdjustment = 450; // Higher surplus
-          } else {
-            caloricAdjustment = 300; // Lower surplus
-          }
         } else {
-          // Within 2kg of ideal weight - maintain (use TDEE with small adjustment if goal is specified)
-          if (userStats.goal === 'lose' && weightDiff > 0) {
-            caloricAdjustment = -200; // Small deficit to fine-tune
-          } else if (userStats.goal === 'gain' && weightDiff < 0) {
-            caloricAdjustment = 200; // Small surplus to fine-tune
-          }
-          // Otherwise maintain at TDEE (caloricAdjustment = 0)
+          if (weightDiff < -10) caloricAdjustment = 500;
+          else if (weightDiff < -5) caloricAdjustment = 400;
+          else if (weightDiff < 0) caloricAdjustment = 300;
+          else caloricAdjustment = 200;
         }
-        
-        target = tdee + caloricAdjustment;
-        
-        // Safety check: never go below BMR
-        target = Math.max(target, bmr);
+
+        target = Math.max(tdee + caloricAdjustment, bmr);
       } catch (e) {
         console.error('Error parsing user stats:', e);
       }
@@ -1856,7 +1832,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-300 font-sans">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-300 font-sans flex flex-col">
       <Header
         theme={theme}
         toggleTheme={toggleTheme}
@@ -1887,42 +1863,71 @@ function App() {
         }}
       />
 
-      {/* Cronômetro do teste grátis (visível só durante o trial) */}
-      {isTrialActive && (
-          <div className="max-w-md mx-auto px-4 pt-1 pb-2">
-            <div className="rounded-xl bg-brand-500/15 dark:bg-brand-500/20 border border-brand-500/30 px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
-                  {lang === 'pt' ? 'Teste grátis' : 'Free trial'}
-                </span>
-                <span className="text-lg font-bold text-brand-700 dark:text-brand-200 tabular-nums tracking-wider" aria-label={lang === 'pt' ? 'Tempo restante' : 'Time remaining'}>
-                  {String(Math.floor(trialDisplayRemainingSeconds / 60)).padStart(2, '0')}
-                  <span className="text-brand-500/80 mx-0.5">:</span>
-                  {String(trialDisplayRemainingSeconds % 60).padStart(2, '0')}
-                </span>
-                <span className="text-xs text-brand-600 dark:text-brand-400 tabular-nums">
-                  {lang === 'pt' ? `de ${TRIAL_MINUTES} min` : `of ${TRIAL_MINUTES} min`}
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mt-2">
-                <div
-                  className="h-full rounded-full bg-brand-500 transition-all duration-500"
-                  style={{
-                    width: `${Math.min(100, ((TRIAL_SECONDS_LIMIT - trialDisplayRemainingSeconds) / TRIAL_SECONDS_LIMIT) * 100)}%`,
-                  }}
-                />
+      {/* Carrossel: slide 0 = Home, slide 1 = Planos + cronômetro do trial (arrastar para o lado) */}
+      <div
+        className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory scroll-smooth touch-pan-x"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        {/* Slide 0: Home (trial strip + conteúdo principal) */}
+        <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-1 px-2 flex-shrink-0">
+            {lang === 'pt' ? '← Deslize para ver planos e tempo do teste' : '← Swipe to see plans and trial time'}
+          </p>
+          {isTrialActive && (
+            <div className="max-w-md mx-auto px-4 pt-1 pb-2 flex-shrink-0">
+              <div className="rounded-xl bg-brand-500/15 dark:bg-brand-500/20 border border-brand-500/30 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
+                    {lang === 'pt' ? 'Teste grátis' : 'Free trial'}
+                  </span>
+                  <span className="text-lg font-bold text-brand-700 dark:text-brand-200 tabular-nums tracking-wider" aria-label={lang === 'pt' ? 'Tempo restante' : 'Time remaining'}>
+                    {String(Math.floor(trialDisplayRemainingSeconds / 60)).padStart(2, '0')}
+                    <span className="text-brand-500/80 mx-0.5">:</span>
+                    {String(trialDisplayRemainingSeconds % 60).padStart(2, '0')}
+                  </span>
+                  <span className="text-xs text-brand-600 dark:text-brand-400 tabular-nums">
+                    {lang === 'pt' ? `de ${TRIAL_MINUTES} min` : `of ${TRIAL_MINUTES} min`}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mt-2">
+                  <div
+                    className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, ((TRIAL_SECONDS_LIMIT - trialDisplayRemainingSeconds) / TRIAL_SECONDS_LIMIT) * 100)}%`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+          <main className="max-w-md mx-auto p-4 flex-1">
+            {view === 'home' && renderHome()}
+            {view === 'results' && renderResults()}
+            {view === 'history' && renderHistory()}
+            {view === 'dayDetails' && renderDayDetails()}
+            {view === 'todayFoods' && renderTodayFoods()}
+          </main>
+        </div>
 
-      <main className="max-w-md mx-auto p-4">
-        {view === 'home' && renderHome()}
-        {view === 'results' && renderResults()}
-        {view === 'history' && renderHistory()}
-        {view === 'dayDetails' && renderDayDetails()}
-        {view === 'todayFoods' && renderTodayFoods()}
-      </main>
+        {/* Slide 1: Planos + cronômetro (arraste para a direita para ver) */}
+        <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
+          <PlansCarouselSlide
+            userId={userId!}
+            theme={theme}
+            lang={lang}
+            showTrialCountdown={isTrialActive}
+            trialDisplayRemainingSeconds={trialDisplayRemainingSeconds}
+            trialMinutes={TRIAL_MINUTES}
+            onVerifySubscription={async () => {
+              const p = await getProfile(userId!);
+              setProfile(p);
+              const status = await getAccessStatus(userId!, p);
+              setAccessStatus(status);
+              setPaymentReturn(null);
+            }}
+          />
+        </div>
+      </div>
 
       {/* PWA Install Prompt */}
       <InstallPrompt theme={theme} lang={lang} />

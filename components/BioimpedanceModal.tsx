@@ -49,77 +49,47 @@ const BioimpedanceModal: React.FC<BioimpedanceModalProps> = ({ isOpen, onClose, 
     let bmr = (10 * stats.weight) + (6.25 * stats.height) - (5 * stats.age);
     bmr += stats.gender === 'male' ? 5 : -161;
 
-    // TDEE Multipliers
-    const activityMultipliers = {
+    const activityMultipliers: Record<string, number> = {
       sedentary: 1.2,
       light: 1.375,
       moderate: 1.55,
       active: 1.725,
       very_active: 1.9
     };
-    
     const tdee = bmr * activityMultipliers[stats.activityLevel];
 
-    // Calculate Ideal Weight Range (BMI 18.5 - 24.9)
     const minIdeal = 18.5 * Math.pow(stats.height / 100, 2);
     const maxIdeal = 24.9 * Math.pow(stats.height / 100, 2);
-    const avgIdeal = (minIdeal + maxIdeal) / 2; // Peso ideal médio
-
-    // Calculate weight difference from ideal weight
+    const avgIdeal = (minIdeal + maxIdeal) / 2;
     const weightDiff = stats.weight - avgIdeal;
-    
-    // Caloric adjustment based on ideal weight - the goal is always to reach ideal weight
+
+    // Ajuste calórico conforme o OBJETIVO escolhido (perder / manter / ganhar)
     let caloricAdjustment = 0;
-    
-    // Safe weight loss/gain rates:
-    // - Loss: 0.5-1 kg/week = 500-1000 kcal/day deficit
-    // - Gain: 0.25-0.5 kg/week = 250-500 kcal/day surplus
-    // - 1 kg = ~7700 kcal (approx)
-    
-    // Primary goal: reach ideal weight
-    if (weightDiff > 2) {
-      // Need to lose weight (more than 2kg above ideal)
-      // Calculate deficit based on how far from ideal
-      // If more than 10kg away, use higher deficit (750-1000 kcal)
-      // If 5-10kg away, use medium deficit (500-750 kcal)
-      // If 2-5kg away, use lower deficit (250-500 kcal)
-      if (weightDiff > 10) {
-        caloricAdjustment = -750; // Higher deficit for significant weight loss
-      } else if (weightDiff > 5) {
-        caloricAdjustment = -600; // Medium deficit
-      } else {
-        caloricAdjustment = -400; // Lower deficit for moderate weight loss
-      }
-      
-      // Ensure we don't exceed safe maximum deficit (1000 kcal)
-      // and don't go below BMR (metabolism protection)
-      const maxSafeDeficit = Math.min(1000, (tdee - bmr) * 0.8); // Max 80% of (TDEE - BMR)
+    const goal = stats.goal;
+
+    if (goal === 'maintain') {
+      // Manter peso: meta = TDEE (ou pequeno ajuste se longe do ideal)
+      if (weightDiff > 2) caloricAdjustment = -150;   // levemente abaixo para descer devagar
+      else if (weightDiff < -2) caloricAdjustment = 150;
+      // else 0
+    } else if (goal === 'lose') {
+      // Perder peso: déficit. ~500 kcal/dia ≈ 0,5 kg/semana
+      if (weightDiff > 10) caloricAdjustment = -750;
+      else if (weightDiff > 5) caloricAdjustment = -600;
+      else if (weightDiff > 0) caloricAdjustment = -500;
+      else caloricAdjustment = -300; // já abaixo do ideal: déficit menor
+      const maxSafeDeficit = Math.min(1000, (tdee - bmr) * 0.8);
       caloricAdjustment = Math.max(caloricAdjustment, -maxSafeDeficit);
-    } else if (weightDiff < -2) {
-      // Need to gain weight (more than 2kg below ideal)
-      // Calculate surplus based on how far from ideal
-      // If more than 5kg below ideal, use higher surplus (400-500 kcal)
-      // If less than 5kg below, use lower surplus (250-350 kcal)
-      if (Math.abs(weightDiff) > 5) {
-        caloricAdjustment = 450; // Higher surplus
-      } else {
-        caloricAdjustment = 300; // Lower surplus
-      }
     } else {
-      // Within 2kg of ideal weight - maintain (use TDEE with small adjustment if goal is specified)
-      if (stats.goal === 'lose' && weightDiff > 0) {
-        caloricAdjustment = -200; // Small deficit to fine-tune
-      } else if (stats.goal === 'gain' && weightDiff < 0) {
-        caloricAdjustment = 200; // Small surplus to fine-tune
-      }
-      // Otherwise maintain at TDEE (caloricAdjustment = 0)
+      // goal === 'gain': ganhar massa: superávit. ~300–500 kcal/dia
+      if (weightDiff < -10) caloricAdjustment = 500;
+      else if (weightDiff < -5) caloricAdjustment = 400;
+      else if (weightDiff < 0) caloricAdjustment = 300;
+      else caloricAdjustment = 200; // já acima: superávit menor
     }
-    
+
     let target = tdee + caloricAdjustment;
-    
-    // Safety check: never go below BMR
     target = Math.max(target, bmr);
-    
     return { bmr, tdee, target, avgIdeal, weightDiff };
   };
 

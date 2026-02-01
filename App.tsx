@@ -90,6 +90,8 @@ function App() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [paymentReturn, setPaymentReturn] = useState<'success' | 'failure' | null>(null);
   const trialIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Tempo restante do trial em segundos para exibir no cronômetro (atualiza a cada 1s, sincroniza com o servidor a cada 15s). */
+  const [trialDisplayRemainingSeconds, setTrialDisplayRemainingSeconds] = useState(0);
 
   const texts = TRANSLATIONS[lang];
 
@@ -221,6 +223,22 @@ function App() {
       trialIntervalRef.current = null;
     };
   }, [userId, accessStatus, profile?.trial_seconds_used, profile?.trial_used_at]);
+
+  // Cronômetro do trial: atualiza a cada 1s e sincroniza com o servidor quando profile.trial_seconds_used muda
+  const isTrialActive =
+    accessStatus === 'allowed' &&
+    profile?.trial_started_at &&
+    !profile?.trial_used_at &&
+    (profile?.trial_seconds_used ?? 0) < TRIAL_SECONDS_LIMIT;
+  useEffect(() => {
+    if (!isTrialActive) return;
+    const remaining = Math.max(0, TRIAL_SECONDS_LIMIT - (profile?.trial_seconds_used ?? 0));
+    setTrialDisplayRemainingSeconds(remaining);
+    const id = setInterval(() => {
+      setTrialDisplayRemainingSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isTrialActive, profile?.trial_seconds_used, TRIAL_SECONDS_LIMIT]);
 
   // Carregar apenas dados do usuário atual (chave com userId). Sem fallback em chave legada para não misturar dados entre usuários.
   useEffect(() => {
@@ -1869,28 +1887,28 @@ function App() {
         }}
       />
 
-      {/* Indicador de tempo do teste grátis (visível só durante o trial) */}
-      {accessStatus === 'allowed' &&
-        profile?.trial_started_at &&
-        !profile?.trial_used_at &&
-        profile.trial_seconds_used < TRIAL_SECONDS_LIMIT && (
+      {/* Cronômetro do teste grátis (visível só durante o trial) */}
+      {isTrialActive && (
           <div className="max-w-md mx-auto px-4 pt-1 pb-2">
-            <div className="rounded-xl bg-brand-500/15 dark:bg-brand-500/20 border border-brand-500/30 px-3 py-2">
-              <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="rounded-xl bg-brand-500/15 dark:bg-brand-500/20 border border-brand-500/30 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
                   {lang === 'pt' ? 'Teste grátis' : 'Free trial'}
                 </span>
-                <span className="text-sm font-bold text-brand-700 dark:text-brand-200 tabular-nums">
-                  {lang === 'pt'
-                    ? `${Math.max(0, Math.ceil((TRIAL_SECONDS_LIMIT - profile.trial_seconds_used) / 60))} min restantes de ${TRIAL_MINUTES} min`
-                    : `${Math.max(0, Math.ceil((TRIAL_SECONDS_LIMIT - profile.trial_seconds_used) / 60))} min left of ${TRIAL_MINUTES} min`}
+                <span className="text-lg font-bold text-brand-700 dark:text-brand-200 tabular-nums tracking-wider" aria-label={lang === 'pt' ? 'Tempo restante' : 'Time remaining'}>
+                  {String(Math.floor(trialDisplayRemainingSeconds / 60)).padStart(2, '0')}
+                  <span className="text-brand-500/80 mx-0.5">:</span>
+                  {String(trialDisplayRemainingSeconds % 60).padStart(2, '0')}
+                </span>
+                <span className="text-xs text-brand-600 dark:text-brand-400 tabular-nums">
+                  {lang === 'pt' ? `de ${TRIAL_MINUTES} min` : `of ${TRIAL_MINUTES} min`}
                 </span>
               </div>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mt-2">
                 <div
                   className="h-full rounded-full bg-brand-500 transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (profile.trial_seconds_used / TRIAL_SECONDS_LIMIT) * 100)}%`,
+                    width: `${Math.min(100, ((TRIAL_SECONDS_LIMIT - trialDisplayRemainingSeconds) / TRIAL_SECONDS_LIMIT) * 100)}%`,
                   }}
                 />
               </div>

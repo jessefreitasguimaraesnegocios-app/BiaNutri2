@@ -1,0 +1,381 @@
+import React, { useState, useEffect } from 'react';
+import { Clock, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import type { FastingCycle, FastingEntry } from '../types';
+import {
+  getFastingEntries,
+  saveFastingEntry,
+  getEntryByDate,
+  hoursBetween,
+  dateToKey,
+} from '../services/fastingService';
+
+interface FastingSlideProps {
+  userId: string;
+  theme: 'light' | 'dark';
+  lang: 'pt' | 'en';
+}
+
+const CYCLES: { id: FastingCycle; label: string; hours: number }[] = [
+  { id: '14', label: '14h', hours: 14 },
+  { id: '16', label: '16h', hours: 16 },
+  { id: '18', label: '18h', hours: 18 },
+  { id: '20', label: '20h', hours: 20 },
+  { id: 'custom', label: 'Personalizado', hours: 0 },
+];
+
+const texts = {
+  pt: {
+    title: 'Jejum',
+    subtitle: 'Defina início e fim e acompanhe seus ciclos.',
+    cycle: 'Ciclo',
+    start: 'Início',
+    end: 'Fim',
+    hours: 'horas',
+    register: 'Registrar jejum hoje',
+    calendar: 'Calendário',
+    dayHours: 'horas neste dia',
+    totalWeek: 'Total esta semana',
+    totalMonth: 'Total este mês',
+    totalAll: 'Total geral',
+    close: 'Fechar',
+    noData: 'Nenhum jejum neste dia.',
+    swipeHint: '← Voltar para o app',
+  },
+  en: {
+    title: 'Fasting',
+    subtitle: 'Set start and end time and track your cycles.',
+    cycle: 'Cycle',
+    start: 'Start',
+    end: 'End',
+    hours: 'hours',
+    register: 'Log fast today',
+    calendar: 'Calendar',
+    dayHours: 'hours this day',
+    totalWeek: 'Total this week',
+    totalMonth: 'Total this month',
+    totalAll: 'Total overall',
+    close: 'Close',
+    noData: 'No fast on this day.',
+    swipeHint: '← Back to app',
+  },
+};
+
+const FastingSlide: React.FC<FastingSlideProps> = ({ userId, theme, lang }) => {
+  const [cycle, setCycle] = useState<FastingCycle>('16');
+  const [startTime, setStartTime] = useState('20:00');
+  const [endTime, setEndTime] = useState('12:00');
+  const [customHours, setCustomHours] = useState(16);
+  const [entries, setEntries] = useState<FastingEntry[]>([]);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<FastingEntry | null>(null);
+
+  const t = texts[lang];
+  const isDark = theme === 'dark';
+
+  useEffect(() => {
+    setEntries(getFastingEntries(userId));
+  }, [userId]);
+
+  const suggestedEndTime = (start: string, hours: number): string => {
+    const [h, m] = start.split(':').map(Number);
+    let endMinutes = h * 60 + m + hours * 60;
+    if (endMinutes >= 24 * 60) endMinutes -= 24 * 60;
+    const eh = Math.floor(endMinutes / 60);
+    const em = endMinutes % 60;
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+  };
+
+  const handleCycleChange = (c: FastingCycle) => {
+    setCycle(c);
+    if (c !== 'custom') {
+      const opt = CYCLES.find((x) => x.id === c);
+      if (opt) setEndTime(suggestedEndTime(startTime, opt.hours));
+    }
+  };
+
+  const handleStartTimeChange = (v: string) => {
+    setStartTime(v);
+    if (cycle !== 'custom') {
+      const opt = CYCLES.find((x) => x.id === cycle);
+      if (opt) setEndTime(suggestedEndTime(v, opt.hours));
+    }
+  };
+
+  const computedHours =
+    cycle === 'custom'
+      ? customHours
+      : hoursBetween(startTime, endTime);
+
+  const handleRegister = () => {
+    const today = dateToKey(new Date());
+    const finalEnd = cycle === 'custom' ? suggestedEndTime(startTime, customHours) : endTime;
+    const finalHours = cycle === 'custom' ? customHours : hoursBetween(startTime, endTime);
+    const entry: FastingEntry = {
+      date: today,
+      startTime,
+      endTime: finalEnd,
+      hours: finalHours,
+      cycle,
+    };
+    saveFastingEntry(userId, entry);
+    setEntries(getFastingEntries(userId));
+  };
+
+  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const daysInMonth = lastDayOfMonth.getDate();
+  const startingDayOfWeek = firstDayOfMonth.getDay();
+
+  const monthNames =
+    lang === 'pt'
+      ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayNames = lang === 'pt' ? ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  const hasFasting = (day: number): boolean => {
+    const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    return entries.some((e) => e.date === dateToKey(d));
+  };
+
+  const handleDayClick = (day: number) => {
+    const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const key = dateToKey(d);
+    setSelectedDate(key);
+    setSelectedEntry(getEntryByDate(userId, key) ?? null);
+  };
+
+  const getWeekStart = (d: Date): Date => {
+    const date = new Date(d);
+    const day = date.getDay();
+    date.setDate(date.getDate() - day);
+    return date;
+  };
+
+  const totalForWeek = (dateStr: string): number => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const weekStart = getWeekStart(d);
+    return entries
+      .filter((e) => {
+        const ed = new Date(e.date + 'T12:00:00');
+        const es = getWeekStart(ed);
+        return es.getTime() === weekStart.getTime();
+      })
+      .reduce((sum, e) => sum + e.hours, 0);
+  };
+
+  const totalForMonth = (dateStr: string): number => {
+    const [y, m] = dateStr.split('-').map(Number);
+    return entries
+      .filter((e) => {
+        const [ey, em] = e.date.split('-').map(Number);
+        return ey === y && em === m;
+      })
+      .reduce((sum, e) => sum + e.hours, 0);
+  };
+
+  const totalAll = entries.reduce((sum, e) => sum + e.hours, 0);
+
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+
+  return (
+    <div className="w-full min-w-full max-w-md mx-auto px-4 py-4 pb-8 flex flex-col gap-4 overflow-y-auto">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-500/20 mb-2">
+          <Clock className="text-brand-500" size={24} />
+        </div>
+        <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.title}</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t.subtitle}</p>
+      </div>
+
+      {/* Ciclo */}
+      <div className="space-y-2">
+        <label className="text-xs font-bold uppercase text-slate-500">{t.cycle}</label>
+        <div className="flex flex-wrap gap-2">
+          {CYCLES.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => handleCycleChange(c.id)}
+              className={`px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                cycle === c.id
+                  ? 'bg-brand-500 text-white shadow-md'
+                  : isDark
+                  ? 'bg-slate-700 text-slate-300'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Início / Fim */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="text-xs font-bold uppercase text-slate-500">{t.start}</label>
+          <input
+            type="time"
+            value={startTime}
+            onChange={(e) => handleStartTimeChange(e.target.value)}
+            className={`w-full p-3 rounded-xl font-mono text-lg ${
+              isDark ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'
+            } border-0`}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-bold uppercase text-slate-500">{t.end}</label>
+          {cycle === 'custom' ? (
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={customHours}
+                onChange={(e) => setCustomHours(Number(e.target.value) || 16)}
+                className={`w-full p-3 rounded-xl font-mono text-lg ${
+                  isDark ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'
+                } border-0`}
+              />
+              <span className="text-sm text-slate-500">{t.hours}</span>
+            </div>
+          ) : (
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className={`w-full p-3 rounded-xl font-mono text-lg ${
+                isDark ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'
+              } border-0`}
+            />
+          )}
+        </div>
+      </div>
+
+      {cycle !== 'custom' && (
+        <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          {hoursBetween(startTime, endTime).toFixed(1)} {t.hours}
+        </p>
+      )}
+
+      <button
+        onClick={handleRegister}
+        className="w-full py-3.5 rounded-xl font-bold bg-brand-500 text-white hover:bg-brand-600 shadow-lg shadow-brand-500/30"
+      >
+        {t.register}
+      </button>
+
+      {/* Calendário */}
+      <div className="space-y-2">
+        <label className="text-xs font-bold uppercase text-slate-500">{t.calendar}</label>
+        <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={prevMonth}
+              className="p-2 rounded-lg hover:bg-white/10 text-slate-500"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+            </span>
+            <button
+              onClick={nextMonth}
+              className="p-2 rounded-lg hover:bg-white/10 text-slate-500"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 mb-2">
+            {dayNames.map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: startingDayOfWeek }, (_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const has = hasFasting(day);
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleDayClick(day)}
+                  className={`aspect-square rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${
+                    has
+                      ? 'bg-brand-500 text-white'
+                      : isDark
+                      ? 'text-slate-300 hover:bg-slate-700'
+                      : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal dia clicado */}
+      {selectedDate && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-4">
+          <div
+            className={`w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 ${
+              isDark ? 'bg-slate-800' : 'bg-white'
+            } shadow-xl`}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {selectedDate}
+              </span>
+              <button
+                onClick={() => { setSelectedDate(null); setSelectedEntry(null); }}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            {selectedEntry ? (
+              <div className="space-y-3">
+                <p className={`text-2xl font-bold text-brand-500`}>
+                  {selectedEntry.hours.toFixed(1)} {t.hours}
+                </p>
+                <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {selectedEntry.startTime} → {selectedEntry.endTime} ({selectedEntry.cycle === 'custom' ? 'custom' : selectedEntry.cycle + 'h'})
+                </p>
+                <div className="border-t border-slate-200 dark:border-slate-600 pt-3 space-y-1 text-sm">
+                  <p className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                    {t.totalWeek}: <strong>{totalForWeek(selectedDate).toFixed(1)} h</strong>
+                  </p>
+                  <p className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                    {t.totalMonth}: <strong>{totalForMonth(selectedDate).toFixed(1)} h</strong>
+                  </p>
+                  <p className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                    {t.totalAll}: <strong>{totalAll.toFixed(1)} h</strong>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>{t.noData}</p>
+            )}
+            <button
+              onClick={() => { setSelectedDate(null); setSelectedEntry(null); }}
+              className="w-full mt-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold text-slate-700 dark:text-slate-200"
+            >
+              {t.close}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-2">
+        {t.swipeHint}
+      </p>
+    </div>
+  );
+};
+
+export default FastingSlide;

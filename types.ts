@@ -63,6 +63,18 @@ export interface WaterEntry {
   timestamp: number;
 }
 
+/** Ciclos de jejum: 14h, 16h, 18h, 20h ou personalizado */
+export type FastingCycle = '14' | '16' | '18' | '20' | 'custom';
+
+/** Registro de um dia de jejum */
+export interface FastingEntry {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  hours: number;
+  cycle: FastingCycle;
+}
+
 export interface UserStats {
   gender: 'male' | 'female';
   age: number;

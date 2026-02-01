@@ -22,6 +22,7 @@ import LoginModal from './components/LoginModal';
 import PhoneModal from './components/PhoneModal';
 import PaywallScreen from './components/PaywallScreen';
 import PlansCarouselSlide from './components/PlansCarouselSlide';
+import FastingSlide from './components/FastingSlide';
 import { getSession, onAuthStateChange, signOut } from './services/authService';
 import {
   getProfile,
@@ -1876,7 +1877,7 @@ function App() {
         }}
       />
 
-      {/* Carrossel: slide 0 = Planos (esquerda), slide 1 = Home (direita). Inicia na Home. */}
+      {/* Carrossel: slide 0 = Planos, slide 1 = Home, slide 2 = Jejum. Inicia na Home. */}
       <div
         ref={carouselRef}
         className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory scroll-smooth touch-pan-x"
@@ -1904,10 +1905,10 @@ function App() {
           </p>
         </div>
 
-        {/* Slide 1 (direita): Home (trial strip + conteúdo principal) */}
+        {/* Slide 1 (centro): Home (trial strip + conteúdo principal) */}
         <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
           <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-1 px-2 flex-shrink-0">
-            {lang === 'pt' ? '← Deslize para a esquerda para ver planos' : '← Swipe left to see plans'}
+            {lang === 'pt' ? '← Planos | → Jejum' : '← Plans | → Fasting'}
           </p>
           {isTrialActive && (
             <div className="max-w-md mx-auto px-4 pt-1 pb-2 flex-shrink-0">
@@ -1943,6 +1944,14 @@ function App() {
             {view === 'dayDetails' && renderDayDetails()}
             {view === 'todayFoods' && renderTodayFoods()}
           </main>
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-1 px-2 flex-shrink-0">
+            {lang === 'pt' ? '→ Deslize para a direita para ver jejum' : '→ Swipe right to see fasting'}
+          </p>
+        </div>
+
+        {/* Slide 2 (direita): Relógio de jejum */}
+        <div className="flex-shrink-0 w-full min-w-full snap-start flex flex-col overflow-y-auto">
+          <FastingSlide userId={userId!} theme={theme} lang={lang} />
         </div>
       </div>
 

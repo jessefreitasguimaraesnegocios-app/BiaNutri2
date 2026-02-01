@@ -88,6 +88,7 @@ function App() {
   } | null>(null);
   const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [paymentReturn, setPaymentReturn] = useState<'success' | 'failure' | null>(null);
   const trialIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const texts = TRANSLATIONS[lang];
@@ -162,9 +163,11 @@ function App() {
       return;
     }
     const url = new URL(window.location.href);
-    if (url.searchParams.get('payment') === 'success' || url.searchParams.get('payment') === 'failure') {
+    const paymentParam = url.searchParams.get('payment');
+    if (paymentParam === 'success' || paymentParam === 'failure') {
+      setPaymentReturn(paymentParam);
       url.searchParams.delete('payment');
-      window.history.replaceState({}, '', url.pathname + url.search);
+      window.history.replaceState({}, '', url.pathname + (url.search || ''));
     }
     let cancelled = false;
     (async () => {
@@ -1801,8 +1804,21 @@ function App() {
         userId={userId}
         theme={theme}
         lang={lang}
+        paymentReturn={paymentReturn}
         onSuccess={() => {
           setAccessStatus('allowed');
+          setPaymentReturn(null);
+        }}
+        onVerifySubscription={async () => {
+          try {
+            const p = await getProfile(userId);
+            setProfile(p);
+            const status = await getAccessStatus(userId, p);
+            setAccessStatus(status);
+            setPaymentReturn(null);
+          } catch (e) {
+            console.error('Erro ao verificar assinatura:', e);
+          }
         }}
       />
     );

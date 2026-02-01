@@ -1,0 +1,4 @@
+# Cloudflare Pages - BiaNutri (app estático Vite/React)
+# Build: npm run build | Saída: dist/
+name = "bianutri"
+pages_build_output_dir = "./dist"

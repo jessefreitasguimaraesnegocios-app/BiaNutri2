@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Check, Loader2, Shield, Zap } from 'lucide-react';
+import { Sparkles, Check, Loader2, Shield, Zap, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { PLANS, PLANS_ORDER, type PlanId } from '../constants/plans';
 import { createCheckout } from '../services/subscriptionService';
 
@@ -7,8 +7,29 @@ interface PaywallScreenProps {
   userId: string;
   theme: 'light' | 'dark';
   lang: 'pt' | 'en';
+  paymentReturn?: 'success' | 'failure' | null;
   onSuccess?: () => void;
+  onVerifySubscription?: () => Promise<void>;
 }
+
+const paymentBannerTexts = {
+  pt: {
+    success: 'Pagamento aprovado',
+    successHint: 'Sua assinatura está sendo ativada. Se o acesso não liberar em segundos, toque em "Verificar assinatura" abaixo.',
+    failure: 'Pagamento não concluído',
+    failureHint: 'Nenhuma cobrança foi feita. Você pode tentar outro plano ou pagar novamente quando quiser.',
+    verifySubscription: 'Verificar assinatura',
+    verifying: 'Verificando...',
+  },
+  en: {
+    success: 'Payment approved',
+    successHint: 'Your subscription is being activated. If access doesn\'t unlock in a few seconds, tap "Verify subscription" below.',
+    failure: 'Payment not completed',
+    failureHint: 'No charge was made. You can try another plan or pay again whenever you\'re ready.',
+    verifySubscription: 'Verify subscription',
+    verifying: 'Verifying...',
+  },
+};
 
 const paywallTexts = {
   pt: {
@@ -51,11 +72,25 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({
   userId,
   theme,
   lang,
+  paymentReturn = null,
   onSuccess,
+  onVerifySubscription,
 }) => {
   const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const t = paywallTexts[lang];
+  const bt = paymentBannerTexts[lang];
+
+  const handleVerifySubscription = async () => {
+    if (!onVerifySubscription || isVerifying) return;
+    setIsVerifying(true);
+    try {
+      await onVerifySubscription();
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleSelectPlan = async (planId: PlanId) => {
     setError(null);
@@ -96,6 +131,54 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({
       } flex flex-col items-center p-4 pb-12`}
     >
       <div className="w-full max-w-md flex flex-col gap-6">
+        {/* Banner: Pagamento aprovado / falhou */}
+        {paymentReturn === 'success' && (
+          <div
+            className={`rounded-2xl p-4 flex gap-4 shadow-md ${
+              isDark
+                ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-100'
+                : 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+            }`}
+          >
+            <div
+              className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                isDark ? 'bg-emerald-500/30' : 'bg-emerald-500/20'
+              }`}
+            >
+              <CheckCircle2 className={isDark ? 'text-emerald-400' : 'text-emerald-600'} size={26} />
+            </div>
+            <div className="flex-1 min-w-0 pt-0.5">
+              <p className="font-bold text-lg leading-tight">{bt.success}</p>
+              <p className={`text-sm mt-1.5 leading-snug ${isDark ? 'text-emerald-200/90' : 'text-emerald-800/90'}`}>
+                {bt.successHint}
+              </p>
+            </div>
+          </div>
+        )}
+        {paymentReturn === 'failure' && (
+          <div
+            className={`rounded-2xl p-4 flex gap-4 shadow-md ${
+              isDark
+                ? 'bg-amber-950/40 border border-amber-500/30 text-amber-100'
+                : 'bg-amber-50 border border-amber-200 text-amber-900'
+            }`}
+          >
+            <div
+              className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                isDark ? 'bg-amber-500/25' : 'bg-amber-500/20'
+              }`}
+            >
+              <XCircle className={isDark ? 'text-amber-400' : 'text-amber-600'} size={26} />
+            </div>
+            <div className="flex-1 min-w-0 pt-0.5">
+              <p className="font-bold text-lg leading-tight">{bt.failure}</p>
+              <p className={`text-sm mt-1.5 leading-snug ${isDark ? 'text-amber-200/90' : 'text-amber-800/90'}`}>
+                {bt.failureHint}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="text-center pt-4">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-500/20 mb-4">
             <Sparkles className="text-brand-500" size={28} />
@@ -218,6 +301,32 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({
           >
             {error}
           </div>
+        )}
+
+        {/* Botão Verificar assinatura */}
+        {onVerifySubscription && (
+          <button
+            type="button"
+            onClick={handleVerifySubscription}
+            disabled={isVerifying}
+            className={`w-full py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
+              isDark
+                ? 'border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-slate-500 text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+          >
+            {isVerifying ? (
+              <>
+                <Loader2 size={20} className="animate-spin flex-shrink-0" />
+                <span>{bt.verifying}</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw size={18} className="flex-shrink-0" />
+                <span>{bt.verifySubscription}</span>
+              </>
+            )}
+          </button>
         )}
 
         <div className="flex items-center justify-center gap-2 text-slate-500 text-xs">

@@ -1,0 +1,192 @@
+import { supabase } from './supabaseClient';
+import type { TrialStatus, AccessStatus } from '../types';
+import { TRIAL_SECONDS_LIMIT } from '../constants/plans';
+
+const TRIAL_FUNCTION = 'trial';
+const MERCADOPAGO_FUNCTION = 'mercadopago-checkout';
+
+/** Normaliza telefone: só dígitos (BR: 10 ou 11 dígitos) */
+export function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('55')) return digits;
+  if (digits.length === 10 || digits.length === 11) return digits;
+  return digits;
+}
+
+/** Busca perfil do usuário (trial + telefone) */
+export async function getProfile(userId: string): Promise<{
+  phone: string | null;
+  trial_started_at: string | null;
+  trial_seconds_used: number;
+  trial_used_at: string | null;
+} | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('phone, trial_started_at, trial_seconds_used, trial_used_at')
+    .eq('id', userId)
+    .single();
+  if (error || !data) return null;
+  return data as any;
+}
+
+/** Atualiza telefone do perfil (apenas dígitos). Retorna erro se telefone já usado em outro usuário. */
+export async function setPhone(userId: string, phone: string): Promise<{ error: string | null }> {
+  const normalized = normalizePhone(phone);
+  if (normalized.length < 10) {
+    return { error: 'Telefone inválido. Use DDD + número.' };
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      phone: normalized,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+/** Verifica se outro perfil já usou o trial com este telefone. */
+export async function checkPhoneAlreadyUsed(
+  phone: string,
+  excludeUserId?: string
+): Promise<boolean> {
+  const normalized = normalizePhone(phone);
+  let q = supabase
+    .from('profiles')
+    .select('id')
+    .eq('phone', normalized)
+    .not('trial_used_at', 'is', null);
+  if (excludeUserId) q = q.neq('id', excludeUserId);
+  const { data, error } = await q.limit(1);
+  if (error || !data || data.length === 0) return false;
+  return true;
+}
+
+/** Status do trial a partir do perfil (para UI). */
+export function getTrialStatusFromProfile(profile: {
+  phone: string | null;
+  trial_started_at: string | null;
+  trial_seconds_used: number;
+  trial_used_at: string | null;
+} | null): TrialStatus {
+  if (!profile) return 'none';
+  if (!profile.phone) return 'phone_required';
+  if (profile.trial_used_at) return 'exhausted';
+  if (profile.trial_started_at != null && profile.trial_seconds_used < TRIAL_SECONDS_LIMIT) {
+    return 'active';
+  }
+  if (profile.trial_started_at != null) return 'exhausted';
+  return 'none';
+}
+
+/** Inicia o trial (backend valida telefone e se já foi usado). */
+export async function startTrial(userId: string): Promise<{
+  ok: boolean;
+  error?: string;
+  trial_seconds_used?: number;
+  trial_used_at?: string | null;
+}> {
+  const { data, error } = await supabase.functions.invoke(TRIAL_FUNCTION, {
+    body: { action: 'start', user_id: userId },
+  });
+  if (error) return { ok: false, error: error.message };
+  const body = data as any;
+  if (body?.error) return { ok: false, error: body.error };
+  return {
+    ok: true,
+    trial_seconds_used: body?.trial_seconds_used ?? 0,
+    trial_used_at: body?.trial_used_at ?? null,
+  };
+}
+
+/** Incrementa tempo de uso do trial (chamar a cada ~15s enquanto app em uso). */
+export async function incrementTrialTime(
+  userId: string,
+  seconds: number
+): Promise<{
+  ok: boolean;
+  trial_seconds_used: number;
+  trial_used_at: string | null;
+  exhausted: boolean;
+}> {
+  const { data, error } = await supabase.functions.invoke(TRIAL_FUNCTION, {
+    body: { action: 'increment', user_id: userId, seconds },
+  });
+  if (error) {
+    return {
+      ok: false,
+      trial_seconds_used: 0,
+      trial_used_at: null,
+      exhausted: false,
+    };
+  }
+  const body = data as any;
+  return {
+    ok: true,
+    trial_seconds_used: body?.trial_seconds_used ?? 0,
+    trial_used_at: body?.trial_used_at ?? null,
+    exhausted: !!body?.trial_used_at,
+  };
+}
+
+/** Verifica se há assinatura ativa (valid_until > now). */
+export async function getSubscriptionActive(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('id, valid_until, status')
+    .eq('user_id', userId)
+    .single();
+  if (error || !data) return false;
+  const sub = data as { valid_until: string; status: string };
+  return sub.status === 'active' && new Date(sub.valid_until) > new Date();
+}
+
+/** Define se o usuário tem acesso ao app (não precisa ver paywall). */
+export async function getAccessStatus(
+  userId: string,
+  profile: {
+    phone: string | null;
+    trial_started_at: string | null;
+    trial_seconds_used: number;
+    trial_used_at: string | null;
+  } | null
+): Promise<AccessStatus> {
+  const hasSubscription = await getSubscriptionActive(userId);
+  if (hasSubscription) return 'allowed';
+
+  if (!profile) return 'phone_required';
+  if (!profile.phone) return 'phone_required';
+  if (profile.trial_used_at) return 'paywall';
+  if (
+    profile.trial_started_at != null &&
+    profile.trial_seconds_used < TRIAL_SECONDS_LIMIT
+  ) {
+    return 'allowed';
+  }
+  if (profile.trial_started_at != null) return 'paywall';
+  return 'allowed';
+}
+
+/** Cria preferência no Mercado Pago e retorna init_point (URL de checkout). */
+export async function createCheckout(
+  userId: string,
+  planId: string,
+  successUrl: string,
+  failureUrl: string
+): Promise<{ init_point?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke(MERCADOPAGO_FUNCTION, {
+    body: {
+      user_id: userId,
+      plan_id: planId,
+      success_url: successUrl,
+      failure_url: failureUrl,
+    },
+  });
+  if (error) return { error: error.message };
+  const body = data as any;
+  if (body?.error) return { error: body.error };
+  return { init_point: body?.init_point ?? body?.url };
+}

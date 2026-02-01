@@ -1,0 +1,7 @@
+{
+  "name": "BiaNutri",
+  "description": "Smart food recognition and nutritional tracker powered by Gemini AI. Analyze your meals, track calories, and monitor macros in English and Portuguese.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

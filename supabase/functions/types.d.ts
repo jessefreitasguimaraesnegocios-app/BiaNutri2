@@ -1,0 +1,7 @@
+// Type declarations for Deno modules used in Supabase Edge Functions
+
+declare module "https://deno.land/std@0.168.0/http/server.ts" {
+  export function serve(
+    handler: (req: Request) => Response | Promise<Response>
+  ): void;
+}

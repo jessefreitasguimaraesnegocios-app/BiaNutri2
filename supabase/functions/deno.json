@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window", "deno.ns"],
+    "strict": true,
+    "allowImportingTsExtensions": true
+  },
+  "imports": {
+    "std/": "https://deno.land/std@0.168.0/"
+  }
+}
